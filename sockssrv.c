@@ -35,6 +35,8 @@
 #include <limits.h>
 #include "server.h"
 #include "sblist.h"
+#include "resolv.h"
+#include "rand.h"
 
 #ifndef MAX
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
@@ -109,7 +111,9 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	int af = AF_INET;
 	size_t minlen = 4 + 4 + 2, l;
 	char namebuf[256];
-	struct addrinfo* remote;
+	// struct addrinfo* remote;
+	struct sockaddr_in remote_addr;
+    struct resolv_entries *entries;
 
 	switch(buf[3]) {
 		case 4: /* ipv6 */
@@ -134,12 +138,20 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	unsigned short port;
 	port = (buf[minlen-2] << 8) | buf[minlen-1];
 	/* there's no suitable errorcode in rfc1928 for dns lookup failure */
-	if(resolve(namebuf, port, &remote)) return -EC_GENERAL_FAILURE;
-	int fd = socket(remote->ai_addr->sa_family, SOCK_STREAM, 0);
+	// if(resolve(namebuf, port, &remote)) return -EC_GENERAL_FAILURE;
+	dprintf(2, "------- namebuf = %s\n", namebuf);
+    entries = resolv_lookup(namebuf);
+	dprintf(2, "------- \n");
+    remote_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
+
+	dprintf(2, "------- remote port = %d\n", port);
+	remote_addr.sin_port = port;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+	// int fd = socket(remote->ai_addr->sa_family, SOCK_STREAM, 0);
 	if(fd == -1) {
 		eval_errno:
 		if(fd != -1) close(fd);
-		freeaddrinfo(remote);
+		// freeaddrinfo(remote);
 		switch(errno) {
 			case ETIMEDOUT:
 				return -EC_TTL_EXPIRED;
@@ -162,10 +174,13 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	}
 	if(SOCKADDR_UNION_AF(&bind_addr) != AF_UNSPEC && bindtoip(fd, &bind_addr) == -1)
 		goto eval_errno;
-	if(connect(fd, remote->ai_addr, remote->ai_addrlen) == -1)
+	// if(connect(fd, remote->ai_addr, remote->ai_addrlen) == -1)
+	// 	goto eval_errno;
+    if (connect(fd, (struct sockaddr *)&remote_addr, sizeof (struct sockaddr_in)) == -1)
 		goto eval_errno;
 
-	freeaddrinfo(remote);
+
+	// freeaddrinfo(remote);
 	if(CONFIG_LOG) {
 		char clientname[256];
 		af = SOCKADDR_UNION_AF(&client->addr);
