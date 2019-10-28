@@ -139,12 +139,9 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 	port = (buf[minlen-2] << 8) | buf[minlen-1];
 	/* there's no suitable errorcode in rfc1928 for dns lookup failure */
 	// if(resolve(namebuf, port, &remote)) return -EC_GENERAL_FAILURE;
-	dprintf(2, "------- namebuf = %s\n", namebuf);
     entries = resolv_lookup(namebuf);
-	dprintf(2, "------- \n");
     remote_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
 
-	dprintf(2, "------- remote port = %d\n", port);
 	remote_addr.sin_port = port;
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 	// int fd = socket(remote->ai_addr->sa_family, SOCK_STREAM, 0);
@@ -365,7 +362,6 @@ static void collect(sblist *threads) {
 			i++;
 	}
 }
-
 static int usage(void) {
 	dprintf(2,
 		"MicroSocks SOCKS5 Server\n"
@@ -394,7 +390,7 @@ int main(int argc, char** argv) {
 	int c;
 	const char *listenip = "0.0.0.0";
 	unsigned port = 1080;
-	while((c = getopt(argc, argv, ":1b:i:p:u:P:")) != -1) {
+	while((c = getopt(argc, argv, ":1b:p:u:P:")) != -1) {
 		switch(c) {
 			case '1':
 				auth_ips = sblist_new(sizeof(union sockaddr_union), 8);
@@ -410,12 +406,9 @@ int main(int argc, char** argv) {
 				auth_pass = strdup(optarg);
 				zero_arg(optarg);
 				break;
-			case 'i':
-				listenip = optarg;
-				break;
-			case 'p':
-				port = atoi(optarg);
-				break;
+            case 'p':
+                port = atoi(optarg);
+                break;
 			case ':':
 				dprintf(2, "error: option -%c requires an operand\n", optopt);
 			case '?':
@@ -433,7 +426,7 @@ int main(int argc, char** argv) {
 	signal(SIGPIPE, SIG_IGN);
 	struct server s;
 	sblist *threads = sblist_new(sizeof (struct thread*), 8);
-	if(server_setup(&s, listenip, port)) {
+	if(server_setup(&s, port)) {
 		perror("server_setup");
 		return 1;
 	}

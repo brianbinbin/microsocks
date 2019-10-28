@@ -43,7 +43,7 @@ int resolve_sa(const char *host, unsigned short port, union sockaddr_union *res)
 int bindtoip(int fd, union sockaddr_union *bindaddr);
 
 int server_waitclient(struct server *server, struct client* client);
-int server_setup(struct server *server, const char* listenip, unsigned short port);
+int server_setup(struct server *server, unsigned short port);
 
 #endif
 
