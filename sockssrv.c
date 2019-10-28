@@ -495,12 +495,12 @@ int main(int argc, char **argv)
 		perror("server_setup");
 		return 1;
 	}
-	struct client c;
+	struct client cli;
 
 	while (1)
 	{
-		if (server_waitclient(&s, &c))
+		if (server_waitclient(&s, &cli))
 			continue;
-		client_process(&c);
+		client_process(&cli);
 	}
 }
