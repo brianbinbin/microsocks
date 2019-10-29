@@ -158,11 +158,11 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 		dprintf(2, "[socksrv] Failed to resolve %s\n", namebuf);
 		return -1;
 	}
-    remote_addr.sin_family = AF_INET;
+	remote_addr.sin_family = AF_INET;
 	remote_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
 	resolv_entries_free(entries);
-	remote_addr.sin_port = port;
-	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	remote_addr.sin_port = htons(port);
+	int fd = socket(remote_addr.sin_family, SOCK_STREAM, 0);
 	if (fd == -1)
 	{
 	eval_errno:
