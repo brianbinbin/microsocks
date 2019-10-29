@@ -25,7 +25,7 @@ clean:
 	rm -f $(OBJS)
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) $(PIC) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) $(PIC) -c -DDEBUG -o $@ $<
 
 $(PROG): $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@

