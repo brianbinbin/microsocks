@@ -150,13 +150,21 @@ static int connect_socks_target(unsigned char *buf, size_t n, struct client *cli
 		return -EC_ADDRESSTYPE_NOT_SUPPORTED;
 	}
 	unsigned short port;
+	struct in_addr addr;
 	port = (buf[minlen - 2] << 8) | buf[minlen - 1];
 	/* there's no suitable errorcode in rfc1928 for dns lookup failure */
 	// if(resolve(namebuf, port, &remote)) return -EC_GENERAL_FAILURE;
-	entries = resolv_lookup(namebuf);
+	if (inet_aton(namebuf, &addr) != 0)
+	{
+		remote_addr.sin_addr = addr;
+	}
+	else
+	{
+		struct resolv_entries *entries = resolv_lookup(namebuf);
+		remote_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
+		resolv_entries_free(entries);
+	}
 	remote_addr.sin_family = AF_INET;
-	remote_addr.sin_addr.s_addr = entries->addrs[rand_next() % entries->addrs_len];
-	resolv_entries_free(entries);
 	remote_addr.sin_port = htons(port);
 	int fd = socket(remote_addr.sin_family, SOCK_STREAM, 0);
 	if (fd == -1)
